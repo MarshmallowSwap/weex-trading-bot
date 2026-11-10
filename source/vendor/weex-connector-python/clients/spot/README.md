@@ -1,0 +1,315 @@
+# WEEX Python Spot SDK
+
+[![Open Issues](https://img.shields.io/github/issues/weex-labs/weex-connector-python)](https://github.com/weex-labs/weex-connector-python/issues)
+![Python Version](https://img.shields.io/badge/Python-%3E%3D3.9-brightgreen)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+English is the source of truth for this README. Languages: English | [Chinese](./README.zh-CN.md)
+
+This is a client library for the WEEX Spot API, enabling developers to interact programmatically with WEEX spot trading through three distinct endpoints:
+
+- [REST API](./src/weex_spot_sdk/rest_api/rest_api.py)
+- [Websocket API](./src/weex_spot_sdk/websocket_api/websocket_api.py)
+- [Websocket Stream](./src/weex_spot_sdk/websocket_streams/websocket_streams.py)
+
+## Table of Contents
+
+- [Supported Features](#supported-features)
+- [Installation](#installation)
+- [Documentation](#documentation)
+- [REST APIs](#rest-apis)
+- [Websocket APIs](#websocket-apis)
+- [Websocket Streams](#websocket-streams)
+- [Automatic Connection Renewal](#automatic-connection-renewal)
+- [Testing](#testing)
+- [Migration Guide](#migration-guide)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Supported Features
+
+- REST API Endpoints:
+  - `/api/*`
+  - Service groups: `GeneralApi`, `MarketApi`, `TradeApi`, `AccountApi`, `RebateApi`
+- WebSocket Endpoints: authenticated request-response flows and public market data streams.
+- Runnable examples and connector-local tests for quick onboarding.
+- Scope note: `POST /api/v3/order/batch` is intentionally excluded from this SDK.
+
+## Installation
+
+To use this library, ensure your environment is running Python version **3.9** or later.
+
+These packages are currently installed from source. From the repository root, install the shared runtime first, then install the Spot connector:
+
+```bash
+pip install -e ./common
+pip install -e ./clients/spot
+```
+
+If you need Spot-specific development dependencies, install the package with its `dev` extra after `./common` is available.
+
+Common environment variables:
+
+- `WEEX_API_KEY`
+- `WEEX_API_SECRET`
+- `WEEX_API_PASSPHRASE`
+- `WEEX_BASE_URL`
+- `WEEX_WS_PRIVATE_URL`
+- `WEEX_WS_PUBLIC_URL`
+
+For rebate or partner flows, you can also provide a dedicated credential set and create a second client with `env_prefix="WEEX_PARTNER_"`:
+
+- `WEEX_PARTNER_API_KEY`
+- `WEEX_PARTNER_API_SECRET`
+- `WEEX_PARTNER_API_PASSPHRASE`
+
+## Documentation
+
+For detailed information, refer to:
+
+- [WEEX Spot API Documentation](https://www.weex.com/api-doc/spot)
+- [REST API source](./src/weex_spot_sdk/rest_api/rest_api.py)
+- [Websocket API source](./src/weex_spot_sdk/websocket_api/websocket_api.py)
+- [Websocket Streams source](./src/weex_spot_sdk/websocket_streams/websocket_streams.py)
+- [REST example](./examples/rest_example.py)
+- [Private Websocket example](./examples/private_ws_example.py)
+- [Public Websocket example](./examples/public_ws_example.py)
+
+Repository: [weex-labs/weex-connector-python](https://github.com/weex-labs/weex-connector-python)
+
+### REST APIs
+
+All REST API endpoints are available through the [`rest_api`](./src/weex_spot_sdk/rest_api/rest_api.py) module. The REST API enables you to fetch market data, manage trades, and access account information. Some endpoints require authentication using your WEEX credentials.
+
+```python
+from weex_spot_sdk import Spot
+
+client = Spot.from_env()
+response = client.rest_api.market_api.get_depth(
+    {"query": {"symbol": "BTCUSDT", "limit": 15}}
+)
+
+print(response.status_code)
+print(response.data)
+```
+
+More examples can be found in the [`examples`](./examples/) folder.
+
+#### Configuration Options
+
+The REST API supports the following configuration options:
+
+- `base_path`: REST base URL. Defaults to `https://api-spot.weex.com`.
+- `allowed_domains`: Allowed hostnames or domain suffixes for custom REST / WebSocket endpoints. Defaults to `("weex.com", "weex.tech")`.
+- `api_key`, `api_secret`, `passphrase`: HMAC authentication credentials.
+- `timeout`: Request timeout in seconds. Defaults to `30.0`.
+- `max_retries`: Retry count. Defaults to `0`.
+- `base_headers`: Additional headers to append to every request.
+- `user_agent`: Custom user agent string.
+- `session`: Custom HTTP session object.
+
+##### Base URL
+
+Use `base_path` to override the default Spot REST endpoint when you need to target a different WEEX environment.
+Custom REST endpoints must use `https://` and resolve to a host allowed by `allowed_domains`.
+
+##### Credentials
+
+Provide `api_key`, `api_secret`, and `passphrase` for authenticated REST endpoints. Public market-data endpoints can be called without these credentials.
+
+##### Timeout
+
+Set `timeout` in seconds to control how long the client waits for a REST response before failing the request.
+
+##### Retries
+
+Use `max_retries` to control whether failed REST requests are retried automatically.
+
+##### Base Headers
+
+Use `base_headers` to append custom headers to every REST request generated by the client.
+
+##### User Agent
+
+Set `user_agent` if you need a custom client identifier in outbound requests.
+
+##### HTTP Session
+
+Provide a custom `session` object when you need to reuse an existing HTTP transport configuration.
+
+#### Error Handling
+
+The REST API provides detailed error types to help you handle issues effectively:
+
+- `RequiredError`
+- `ClientError`
+- `SignatureError`
+- `NetworkError`
+- `BadRequestError`
+- `UnauthorizedError`
+- `ForbiddenError`
+- `NotFoundError`
+- `TooManyRequestsError`
+- `ServerError`
+- `ApiBusinessError`
+
+#### Staging
+
+WEEX does not currently publish staging REST endpoints in the external docs. If your WEEX team provides one for validation, update `WEEX_BASE_URL` before creating the client:
+
+```bash
+export WEEX_BASE_URL=https://<spot-staging-rest-endpoint>
+```
+
+By default, custom endpoints must stay under `*.weex.com` or `*.weex.tech`. If WEEX provides another official hostname, construct `ConfigurationRestAPI(..., allowed_domains=(...))` explicitly before creating the client.
+
+### Websocket APIs
+
+The Websocket API provides authenticated request-response communication for account and order events. Use the [`websocket_api`](./src/weex_spot_sdk/websocket_api/websocket_api.py) module to interact with these endpoints.
+
+```python
+from weex_spot_sdk import Spot
+
+client = Spot.from_env()
+ws_api = client.websocket_api
+ws_api.connect()
+ws_api.subscribe_orders()
+print(ws_api.receive())
+ws_api.close()
+```
+
+More examples can be found in the [`examples`](./examples/) folder.
+
+#### Configuration Options
+
+The Websocket API supports the following configuration options:
+
+- `stream_url`: Private WebSocket endpoint.
+- `allowed_domains`: Allowed hostnames or domain suffixes for custom REST / WebSocket endpoints. Defaults to `("weex.com", "weex.tech")`.
+- `api_key`, `api_secret`, `passphrase`: Authenticated WebSocket credentials.
+- `timeout`: Socket timeout in seconds. Defaults to `30.0`.
+- `reconnect_delay`: Delay before reconnecting after a disconnect. Defaults to `1.5`.
+- `user_agent`: Custom user agent string.
+
+##### Credentials
+
+Provide `api_key`, `api_secret`, and `passphrase` for authenticated private WebSocket requests.
+
+##### Timeout
+
+Set `timeout` in seconds to control how long the client waits for a WebSocket operation to complete.
+
+##### Reconnect Delay
+
+Use `reconnect_delay` to control how long the client waits before reconnecting after a broken private WebSocket session.
+
+##### User Agent
+
+Set `user_agent` if you need a custom client identifier during the WebSocket handshake.
+
+#### Staging
+
+WEEX does not currently publish staging private WebSocket endpoints in the external docs. If your WEEX team provides one for validation, update `WEEX_WS_PRIVATE_URL` before creating the client:
+
+```bash
+export WEEX_WS_PRIVATE_URL=wss://<spot-staging-private-websocket-endpoint>
+```
+
+Private WebSocket overrides must use `wss://` and stay under `allowed_domains` unless you explicitly extend that allowlist in code.
+
+### Websocket Streams
+
+The Websocket Streams module provides public market data subscriptions for ticker, depth, trade, and kline-style channels. Use the [`websocket_streams`](./src/weex_spot_sdk/websocket_streams/websocket_streams.py) module to interact with these endpoints.
+
+```python
+from weex_spot_sdk import Spot
+
+client = Spot.from_env()
+streams = client.websocket_streams
+streams.connect()
+streams.subscribe_ticker("BTCUSDT")
+print(streams.receive())
+streams.close()
+```
+
+More examples can be found in the [`examples`](./examples/) folder.
+
+#### Configuration Options
+
+The Websocket Streams module supports the following configuration options:
+
+- `stream_url`: Public WebSocket endpoint.
+- `allowed_domains`: Allowed hostnames or domain suffixes for custom REST / WebSocket endpoints. Defaults to `("weex.com", "weex.tech")`.
+- `timeout`: Socket timeout in seconds. Defaults to `30.0`.
+- `reconnect_delay`: Delay before reconnecting after a disconnect. Defaults to `1.5`.
+- `user_agent`: Custom user agent string.
+
+##### Stream URL
+
+Use `stream_url` to override the default public market-data WebSocket endpoint.
+Custom stream URLs must use `wss://` and resolve to a host allowed by `allowed_domains`.
+
+##### Timeout
+
+Set `timeout` in seconds to control how long the client waits for stream activity before returning an error.
+
+##### Reconnect Delay
+
+Use `reconnect_delay` to control how long the client waits before reconnecting after a broken public stream connection.
+
+##### User Agent
+
+Set `user_agent` if you need a custom client identifier during the WebSocket handshake.
+
+#### Staging
+
+WEEX does not currently publish staging public WebSocket endpoints in the external docs. If your WEEX team provides one for validation, update `WEEX_WS_PUBLIC_URL` before creating the client:
+
+```bash
+export WEEX_WS_PUBLIC_URL=wss://<spot-staging-public-websocket-endpoint>
+```
+
+Public WebSocket overrides follow the same secure default allowlist as private endpoints.
+
+### Automatic Connection Renewal
+
+Both Websocket APIs and Websocket Streams reuse the shared `weex_common.websocket.BaseWebSocketClient`. When a send or receive operation fails because the connection is no longer available, the client waits for `reconnect_delay`, reconnects automatically, and replays existing channel subscriptions.
+
+## Testing
+
+From the repository root, run:
+
+```bash
+python -m compileall ./common/src
+python -m compileall ./clients/spot/src
+```
+
+Notes:
+
+- Spot signature coverage is available under [`./tests`](./tests/).
+- Example programs are kept under [`./examples`](./examples/).
+- If you install test dependencies for the Spot package, run the local tests in `./tests`.
+
+## Migration Guide
+
+If you are upgrading from the previous standalone `weex-spot-sdk` layout:
+
+- The public import path remains `from weex_spot_sdk import Spot`.
+- Shared runtime code now lives in `../../common`, so `weex-common` must be installed before the Spot package.
+- Scope notes such as the excluded batch order endpoint are tracked in this README.
+
+## Contributing
+
+Contributions are welcome.
+
+Since this repository contains generated SDK code, start by opening an issue to discuss API changes or mismatches with the upstream specification.
+
+To contribute:
+
+1. Put shared runtime changes in [`../../common`](../../common).
+2. Keep Spot-specific behavior in [`./src/weex_spot_sdk`](./src/weex_spot_sdk).
+3. Update README, examples, and tests together when the public surface changes.
+
+## License
+
+See the [LICENSE](../../LICENSE) file for licensing details.

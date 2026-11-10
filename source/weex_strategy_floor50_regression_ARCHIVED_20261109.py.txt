@@ -1,0 +1,44 @@
+"""New 50x threshold regressions; entirely offline, no exchange orders."""
+import copy,json,tempfile,unittest
+from pathlib import Path
+from unittest.mock import patch
+from test_weex_pretrade_regression import META
+from test_weex_lifecycle import PLAN,Exchange,CFG
+from weex_max_leverage import select
+from weex_lifecycle import Lifecycle
+
+TIERS=[{'notionalFloor':0,'notionalCap':100000,'initialLeverage':50}]
+class StrategyFloor50(unittest.TestCase):
+ def select(self,lev,minimum=50):
+  return select(metadata={**META,'maxLeverage':lev},
+   brackets=[{'notionalFloor':0,'notionalCap':100000,'initialLeverage':lev}],
+   margin_usdt=5,reference_price=1,minimum=minimum)
+ def test_exchange_maximum_50_is_eligible(self):
+  r=self.select(50)
+  self.assertEqual(r['leverage'],'50')
+  self.assertEqual(r['minimumLeverage'],'50')
+  self.assertEqual(r['policy'],'MAXIMUM_LEVERAGE_FIRST_MINIMUM_50')
+ def test_maximum_49_is_skipped(self):
+  with self.assertRaisesRegex(ValueError,'50_OR_HIGHER'):self.select(49)
+ def test_higher_maximum_not_forced_to_50(self):
+  r=self.select(125)
+  self.assertEqual(r['leverage'],'125')
+ def test_configured_floor_above_50_is_preserved(self):
+  with self.assertRaises(ValueError):self.select(60,minimum=75)
+ def test_production_lifecycle_can_prepare_50(self):
+  with tempfile.TemporaryDirectory() as temp:
+   engine=Lifecycle(Path(temp)/'worker.db',Exchange(),lambda:copy.deepcopy(CFG))
+   p=copy.deepcopy(PLAN);p['requestedLeverage']='50'
+   self.assertEqual(engine.prepare('floor50',p)['plan']['requestedLeverage'],'50')
+ def test_production_lifecycle_rejects_49(self):
+  with tempfile.TemporaryDirectory() as temp:
+   engine=Lifecycle(Path(temp)/'worker.db',Exchange(),lambda:copy.deepcopy(CFG))
+   p=copy.deepcopy(PLAN);p['requestedLeverage']='49'
+   with self.assertRaisesRegex(ValueError,'LEVERAGE_BELOW_50'):engine.prepare('floor49',p)
+ def test_real_config_still_disarmed(self):
+  root=Path(__file__).resolve().parent
+  cfg=json.loads((root/'weex_ai_risk_config.json').read_text())
+  self.assertEqual(cfg['risk']['minimumLeverage'],50)
+  self.assertFalse(cfg['execution']['enabled'])
+  self.assertEqual(cfg['execution']['mode'],'PRETRADE')
+if __name__=='__main__':unittest.main()

@@ -1,0 +1,12 @@
+from pathlib import Path
+p=Path(r"D:\FUNDSHOT\weex_alerts\orderbook_liquidity.py")
+s=p.read_text(encoding="utf-8")
+s=s.replace('"top15BidNotional":round(bid_usdt,2),"top15AskNotional":round(ask_usdt,2)', '"top15BidNotional":None,"top15AskNotional":None,"depthUnitVerified":False,"rawPriceTimesSizeBid":round(bid_usdt,2),"rawPriceTimesSizeAsk":round(ask_usdt,2)')
+p.write_text(s,encoding="utf-8")
+p=Path(r"D:\FUNDSHOT\weex_alerts\market_agents_rotating.py")
+s=p.read_text(encoding="utf-8")
+s=s.replace('depth=min(book.get("top15BidNotional",0),book.get("top15AskNotional",0))\n   good=book["status"]=="OK" and spread is not None and spread<=15 and depth>=1000','depth_verified=book.get("depthUnitVerified") is True\n   depth=min(book.get("top15BidNotional") or 0,book.get("top15AskNotional") or 0)\n   good=book["status"]=="OK" and spread is not None and spread<=15 and depth_verified and depth>=1000')
+s=s.replace('"minTop15Notional":depth,"passed":good','"minTop15Notional":depth if depth_verified else None,"depthUnitVerified":depth_verified,"passed":good')
+s=s.replace('"Real order-book liquidity veto"','"Order-book notional units unverified; fail closed"')
+p.write_text(s,encoding="utf-8")
+print("patched fail-closed depth sizing")

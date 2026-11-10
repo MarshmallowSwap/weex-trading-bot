@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "weex-spot-sdk"
+version = "0.1.0"
+description = "WEEX Spot Python SDK"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "requests>=2.31.0,<3.0.0",
+  "websocket-client>=1.8.0,<2.0.0",
+  "weex-common==0.1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0,<9.0.0"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["weex_spot_sdk*"]

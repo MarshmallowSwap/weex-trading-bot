@@ -1,0 +1,6 @@
+requests<3.0.0,>=2.31.0
+websocket-client<2.0.0,>=1.8.0
+weex-common==0.1.0
+
+[dev]
+pytest<9.0.0,>=8.0.0
