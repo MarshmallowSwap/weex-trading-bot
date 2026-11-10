@@ -1,0 +1,6 @@
+*.key
+*.pem
+*credentials*.json
+*.env
+weex_full_backup.zip
+weex_full_backup.zip.aesgcm

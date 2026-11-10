@@ -1,0 +1,17 @@
+{
+  "file_count": 4323,
+  "format": "WEEXAES1 = magic(8)+nonce(12)+ciphertext+GCMtag(16)",
+  "parts": [
+    {
+      "file": "weex_backup.part001",
+      "sha256": "1b960436cac4c761e199e0f91e49e1fecfc7026a8b5b88c17ef10479df26a6af",
+      "bytes": 41943040
+    },
+    {
+      "file": "weex_backup.part002",
+      "sha256": "1eec2180365a4ac41f1b609081054911c7350adda775e7f00443d54558282569",
+      "bytes": 9441157
+    }
+  ],
+  "source": "D:\\FUNDSHOT\\weex_alerts"
+}
